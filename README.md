@@ -31,7 +31,7 @@ Install Java
 
 ```
 sudo apt update
-sudo apt install openjdk-11-jre
+sudo apt install openjdk-17-jre
 ```
 
 Verify Java is Installed
@@ -50,6 +50,8 @@ echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
   /etc/apt/sources.list.d/jenkins.list > /dev/null
 sudo apt-get update
 sudo apt-get install jenkins
+sudo systemctl status jenkins.service
+systemctl restart jenkins.service
 ```
 
 **Note: ** By default, Jenkins will not be accessible to the external world due to the inbound traffic restriction by AWS. Open port 8080 in the inbound traffic rules as show below.
