@@ -1,0 +1,34 @@
+pipeline {
+    environment {
+    APP_NAME = "ammydock/cdac"
+    dockerImage = ''
+   }    
+    agent any
+    tools {
+        maven 'maven'
+       } 
+    stages {
+       stage('clone github') {
+          steps {
+              git 'https://github.com/ammy-git/docker-spring-boot-java-web-service-example.git'
+            }  
+        }
+            stage('Maven Build') {
+               steps {
+                   sh 'mvn clean package'
+            }
+        }
+            stage('Sonarqube Analysis') {
+               steps {
+                   withSonarQubeEnv('sonar'){
+                     sh 'mvn clean package sonar:sonar'   
+                }
+            }
+        }
+            stage('Building image') {
+               steps {
+                   sh 'docker build -t $APP_NAME:v1 .'
+            }
+        }
+    }
+}    
