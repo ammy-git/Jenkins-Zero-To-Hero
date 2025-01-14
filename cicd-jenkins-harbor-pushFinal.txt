@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+    environment {
+        DOCKERHUB_CREDENTIALS =  credentials('harbornewcred')
+        }
+    tools {
+        maven 'maven'
+    } 
+    stages {
+        stage('Checkout Gitlab code') {
+            steps {
+                echo 'Cloning repository...'
+                git 'https://github.com/ammy-git/docker-spring-boot-java-web-service-example.git'
+            }
+        }
+        stage('Unit Tests') {
+            steps {
+                echo 'Running Unit Tests...'
+                sh 'mvn test'
+            }
+        }
+        stage('Maven Code Build') {
+            steps {
+                echo 'Building application...'
+                sh 'mvn clean package'
+            }
+        }
+        stage('Building image') {
+            steps {
+                sh 'docker build -t test:v1 .'
+                sh 'docker tag test:v1 13.233.148.163/cicd-testing/test:v1'
+            }
+        }
+        stage('Docker Image push to registry') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login 13.233.148.163 -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push 13.233.148.163/cicd-testing/test:v1'
+            }
+        }
+    }
+ } 
