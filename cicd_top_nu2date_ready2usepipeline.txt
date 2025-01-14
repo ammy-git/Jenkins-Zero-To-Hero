@@ -1,0 +1,68 @@
+ pipeline {
+    agent any
+    environment {
+        DOCKERHUB_CREDENTIALS =  credentials('dockerhubpush')
+        }
+    tools {
+        maven 'maven'
+    } 
+    stages {
+        stage('Checkout Gitlab code') {
+            steps {
+                echo 'Cloning repository...'
+                git 'https://github.com/ammy-git/docker-spring-boot-java-web-service-example.git'
+            }
+        }
+        stage('Unit Tests') {
+            steps {
+                echo 'Running Unit Tests...'
+                sh 'mvn test'
+            }
+        }
+        stage('Maven Code Build') {
+            steps {
+                echo 'Building application...'
+                sh 'mvn clean package'
+            }
+        }
+        stage('Code Quality scanner') {
+            steps {
+                echo 'Running SonarQube analysis...'
+                withSonarQubeEnv('sonar') {
+                    sh 'mvn clean package sonar:sonar'
+                }
+            }
+        }
+        stage('Docker Build Image') {
+            steps {
+                echo 'Building Docker Image...'
+                script {
+                    sh 'docker build -t ammydock/cdacdemo:$BUILD_NUMBER .'
+                }
+            }
+        }
+        stage('Trivy image Scan') {
+            steps {
+                sh 'trivy image ammydock/cdacdemo:$BUILD_NUMBER --format table -o image.html'
+            }
+        }
+        stage('Docker image Push to harbor') {
+            steps {
+                echo 'Pushing Docker Image to Harbor...'
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push ammydock/cdacdemo:$BUILD_NUMBER'
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Check the logs.'
+        }
+        always {
+            cleanWs()
+        }
+    }
+ } 
