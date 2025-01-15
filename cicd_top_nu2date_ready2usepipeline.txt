@@ -1,7 +1,8 @@
  pipeline {
     agent any
     environment {
-        DOCKERHUB_CREDENTIALS =  credentials('dockerhubpush')
+        DOCKERHUB_CREDENTIALS =  credentials('harbornewcred') //this cred create in jenkins with harbor usr and paawd
+        REGISTRY = Harbor_ip_address
         }
     tools {
         maven 'maven'
@@ -37,20 +38,21 @@
             steps {
                 echo 'Building Docker Image...'
                 script {
-                    sh 'docker build -t ammydock/cdacdemo:$BUILD_NUMBER .'
+                    sh 'docker build -t tester:$BUILD_NUMBER .'
+                    sh 'docker tag tester:$BUILD_NUMBER 13.233.148.163/cicd-testing/tester:$BUILD_NUMBER'
                 }
             }
         }
         stage('Trivy image Scan') {
             steps {
-                sh 'trivy image ammydock/cdacdemo:$BUILD_NUMBER --format table -o image.html'
+                sh 'trivy image tester:$BUILD_NUMBER --format table -o image.html'
             }
         }
         stage('Docker image Push to harbor') {
             steps {
                 echo 'Pushing Docker Image to Harbor...'
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                sh 'docker push ammydock/cdacdemo:$BUILD_NUMBER'
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login Harbor_ip_address -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push 13.233.148.163/cicd-testing/tester:$BUILD_NUMBER'
             }
         }
     }
