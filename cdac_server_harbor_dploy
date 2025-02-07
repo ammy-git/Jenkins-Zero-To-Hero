@@ -1,0 +1,42 @@
+pipeline {
+    agent any
+    environment {
+        DOCKERHUB_CREDENTIALS =  credentials('HARBOR_CREDENTIALS')
+# Create DOCKERHUB_CREDENTIALS in the jenkins credential> global > username & passwd (Harbor) > ID > HARBOR_CREDENTIALS
+        }
+    tools {
+        maven 'maven'
+    } 
+    stages {
+        stage('Checkout Gitlab code') {
+            steps {
+                echo 'Cloning repository...'
+                git 'https://github.com/ammy-git/docker-spring-boot-java-web-service-example.git'
+            }
+        }
+        stage('Unit Tests') {
+            steps {
+                echo 'Running Unit Tests...'
+                sh 'mvn test'
+            }
+        }
+        stage('Maven Code Build') {
+            steps {
+                echo 'Building application...'
+                sh 'mvn clean package'
+            }
+        }
+        stage('Building image') {
+            steps {
+                sh 'docker build -t test:v1 .'
+                sh 'docker tag test:v1 13.201.49.67/cicdpipeline/test:v1'
+            }
+        }
+        stage('Docker Image push to registry') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login 13.201.49.67 -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push 13.201.49.67/cicdpipeline/test:v1'
+            }
+        }
+    }
+ }
