@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK17'       // Ensure JDK17 is installed in Jenkins
+        maven 'mvn'       // Ensure Maven is installed and configured in Jenkins
+    }
+
+    environment {
+        NEXUS_URL = 'http://54.221.156.154:8081'
+        NEXUS_REPO = 'vprofile-snapshots'
+        ARTIFACT_GROUP = 'com.visualpathit'
+        ARTIFACT_NAME = 'vprofile'
+        HARBOR_REGISTRY = 'harbor.mycompany.com/vprofile'
+        HARBOR_USERNAME = 'admin'
+        HARBOR_PASSWORD = 'HarborPass123'
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main', url: 'https://github.com/cdivyanshu/vprofile-project.git'  // Replace with actual repo
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                script {
+                    sh "${tool 'mvn'}/bin/mvn clean test"
+                }
+            }
+        }
+
+        stage('Maven Build & Package') {
+            steps {
+                script {
+                    sh "${tool 'mvn'}/bin/mvn clean package -DskipTests"
+                }
+            }
+        }
+
+        stage('Deploy Snapshot to Nexus') {
+            steps {
+                script {
+                    sh """
+                    mvn deploy \
+                        -DaltDeploymentRepository=nexus::default::${NEXUS_URL}/repository/${NEXUS_REPO} \
+                        --settings settings.xml
+                    """
+                }
+            }
+        }
+
+        stage('Download Latest Snapshot WAR from Nexus') {
+            steps {
+                script {
+                    sh """
+                    curl -s ${NEXUS_URL}/service/rest/v1/search?repository=${NEXUS_REPO}&group=${ARTIFACT_GROUP}&name=${ARTIFACT_NAME} | jq -r '.items[0].assets[0].downloadUrl' > latest_war_url.txt
+                    """
+                    def warUrl = readFile('latest_war_url.txt').trim()
+
+                    if (warUrl == '') {
+                        error " No snapshot WAR file found in Nexus!"
+                    }
+
+                    // Download the latest WAR file
+                    sh "curl -o app.war ${warUrl}"
+                }
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                    docker build -t ${HARBOR_REGISTRY}/vprofile:latest .
+                    """
+                }
+            }
+        }
+        stage('Push Docker Image to Harbor') {
+            steps {
+                script {
+                    sh """
+                    docker login ${HARBOR_REGISTRY} -u ${HARBOR_USERNAME} -p ${HARBOR_PASSWORD}
+                    docker push ${HARBOR_REGISTRY}/vprofile:latest
+                    """
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Build and deployment completed successfully!'
+        }
+        failure {
+            echo 'Build or deployment failed! Check logs for details.'
+        }
+    }
+}
