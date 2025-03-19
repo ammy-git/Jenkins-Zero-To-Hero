@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+    environment {
+        DOCKERHUB_CREDENTIALS =  credentials('harbor-cred')
+        HARBOR_REGISTRY = '10.10.41.8:80'
+        NEXUS_URL = 'http://10.10.41.9:8081'
+        NEXUS_REPO = 'vprofile-snapshots'
+        ARTIFACT_GROUP = 'com/visualpathit/vprofile'
+        ARTIFACT_NAME = 'vprofile'
+        SETTINGS_PATH = '/var/lib/jenkins/.m2/settings.xml'
+        WAR_FILE_NAME = 'vprofile-2.0-SNAPSHOT.war'
+        KUBECONFIG = credentials('kube-cred')
+    }
+    tools{ 
+        maven 'maven'
+        }
+        
+    stages {
+        stage('Checkout Gitlab code') {
+            steps {
+                echo 'Cloning repository...'
+                 git branch: 'main', url: 'https://github.com/cdivyanshu/vprofile-project.git'
+            }
+        }
+        stage('Unit Tests') {
+            steps {
+                echo 'Running Unit Tests...'
+                sh 'mvn compile'
+            }
+        }
+        stage('Code Quality scanner') {
+            steps {
+                echo 'Running SonarQube analysis...'
+                withSonarQubeEnv('sonar-server') {
+                    sh 'mvn clean package sonar:sonar'
+                }
+            }
+        }
+        stage('Maven Code Build') {
+            steps {
+                echo 'Building application...'
+                sh 'mvn clean package'
+            }
+        }
+        
+        stage('Deploy Snapshot to Nexus') {
+            steps {
+                script {
+                    sh """
+                    mvn deploy \
+                        -DaltDeploymentRepository=nexus::http://10.10.41.9:8081/repository/maven-snap/ \
+                        --settings ${SETTINGS_PATH}
+                    """
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'docker build -t tester:v2 .'
+                    sh 'docker tag tester:v2 10.10.41.8:80/cicd-testing/tester:v2'
+                }
+            }
+        }
+        stage('Push Docker Image to Harbor') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login 10.10.41.8:80 -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push 10.10.41.8:80/cicd-testing/tester:v2'
+           }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                   sh "kubectl --kubeconfig=$KUBECONFIG get nodes"
+                   sh "kubectl --kubeconfig=$KUBECONFIG create namespace my-dev tts-time"
+                }   
+            }
+        }
+    }
+}    
