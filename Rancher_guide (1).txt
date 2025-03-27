@@ -1,0 +1,16 @@
+
+
+Installation
+https://azdigi.com/blog/en/linux-server-en/what-is-rancher-and-rancher-installation-instructions/
+
+Note use sudo if you r normal user > when u get passwd bootstrap
+
+
+
+
+Configuration
+
+1) Create k8s cluster
+2) label nodes with master and worker
+3) Then start configuration
+https://www.linuxtechi.com/register-kubernetes-cluster-in-rancher/
